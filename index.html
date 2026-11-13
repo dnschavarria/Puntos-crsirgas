@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f3d3e">
+<title>Puntos CR-SIRGAS</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="leaflet/leaflet.css">
+<style>
+  :root{
+    --bg:#f4f6f5; --card:#fff; --ink:#14201f; --muted:#5b6b69; --line:#d9e0de;
+    --brand:#0f3d3e; --brand2:#16796f; --ok:#1d7f3b; --warn:#b26b00; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{background:var(--brand);color:#fff;padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;
+    display:flex;align-items:center;justify-content:space-between;gap:8px}
+  header h1{font-size:17px;margin:0;font-weight:650}
+  header .crs{font-size:12px;opacity:.85}
+  header button{background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:6px 10px;font-size:14px}
+  main{position:absolute;top:calc(env(safe-area-inset-top) + 56px);bottom:calc(env(safe-area-inset-bottom) + 60px);left:0;right:0;overflow:auto}
+  section{display:none;padding:14px}
+  section.on{display:block}
+  #tab-mapa{padding:0;height:100%}
+  #map{position:absolute;inset:0}
+  nav{position:fixed;bottom:0;left:0;right:0;height:calc(env(safe-area-inset-bottom) + 60px);
+    padding-bottom:env(safe-area-inset-bottom);background:#fff;border-top:1px solid var(--line);display:flex}
+  nav button{flex:1;border:0;background:none;font-size:14px;color:var(--muted);font-weight:600}
+  nav button.on{color:var(--brand2);box-shadow:inset 0 3px 0 var(--brand2)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+  .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .coord{font:700 30px/1.15 ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .small{font:14px ui-monospace,Menlo,Consolas,monospace;color:var(--muted)}
+  .status{display:flex;align-items:center;gap:8px;font-weight:600}
+  .dot{width:12px;height:12px;border-radius:50%;background:#aaa;flex:none}
+  .dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+  .btn{display:block;width:100%;border:0;border-radius:12px;padding:15px;font-size:17px;font-weight:700;
+    background:var(--brand2);color:#fff}
+  .btn.sec{background:#e6eeec;color:var(--brand)}
+  .btn.danger{background:#fbe9e7;color:var(--bad)}
+  .btn.mini{padding:11px;font-size:15px}
+  .btn:disabled{opacity:.45}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  .progress{height:10px;background:#e6eeec;border-radius:6px;overflow:hidden;margin:10px 0 4px}
+  .progress>div{height:100%;width:0;background:var(--brand2);transition:width .3s}
+  .pt{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;cursor:pointer}
+  .pt b{font-size:16px}
+  .pt img{width:56px;height:56px;object-fit:cover;border-radius:8px;flex:none;background:#e6eeec}
+  .tag{display:inline-block;background:#e6eeec;color:var(--brand);border-radius:6px;padding:1px 7px;font-size:12px;margin-left:6px}
+  .empty{color:var(--muted);text-align:center;padding:30px 10px}
+  dialog{border:0;border-radius:14px;padding:0;width:min(94vw,440px);max-height:92vh}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  dialog form,dialog .dlg{padding:16px}
+  dialog h2{margin:0 0 10px;font-size:18px}
+  label.f{display:block;margin:10px 0 4px;font-size:13px;color:var(--muted);font-weight:600}
+  input,select,textarea{width:100%;font:16px system-ui,sans-serif;padding:10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+  textarea{min-height:64px}
+  .note{font-size:13px;color:var(--muted)}
+  .fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 10px}
+  .foto{position:relative;aspect-ratio:1;border-radius:9px;overflow:hidden;background:#e6eeec;border:0;padding:0}
+  .foto img{width:100%;height:100%;object-fit:cover;display:block}
+  .foto span{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font:12px ui-monospace,monospace;padding:2px 4px;text-align:center}
+  .rumbo{display:flex;align-items:center;gap:10px;font:14px ui-monospace,monospace;color:var(--muted);margin:2px 0 8px}
+  .rumbo svg{flex:none}
+  #fotoGrande{width:100%;max-height:58vh;object-fit:contain;background:#111;border-radius:10px;display:block}
+  .msg{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 72px);transform:translateX(-50%);
+    background:#14201f;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;z-index:2000}
+  .msg.show{opacity:1}
+  .leaflet-container{font:14px system-ui,sans-serif}
+  .leaflet-popup-content img{width:180px;max-height:180px;object-fit:cover;border-radius:6px;display:block;margin-top:6px}
+  .mapbtns{position:absolute;right:10px;bottom:16px;z-index:1000;display:flex;flex-direction:column;gap:8px}
+  .mapbtns button{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+  .ocupado{position:fixed;inset:0;background:rgba(255,255,255,.75);display:none;align-items:center;justify-content:center;z-index:3000;font-weight:700;color:var(--brand)}
+  .ocupado.on{display:flex}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Puntos CR-SIRGAS</h1><div class="crs">CRTM05 · EPSG:8908</div></div>
+  <button id="btnAjustes" type="button">Ajustes</button>
+</header>
+
+<main>
+  <!-- CAPTURA -->
+  <section id="tab-captura" class="on">
+    <div class="card">
+      <div class="status"><span class="dot" id="dot"></span><span id="estado">GPS inactivo</span></div>
+      <div class="small" id="estadoDet" style="margin-top:4px">Toque «Activar GPS» para empezar.</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Este (X)</div>
+      <div class="coord" id="vE">—</div>
+      <div class="label" style="margin-top:8px">Norte (Y)</div>
+      <div class="coord" id="vN">—</div>
+      <div class="grid2" style="margin-top:12px">
+        <div><div class="label">Precisión</div><div class="small" id="vAcc">—</div></div>
+        <div><div class="label">Altura elips.</div><div class="small" id="vAlt">—</div></div>
+        <div><div class="label">Latitud</div><div class="small" id="vLat">—</div></div>
+        <div><div class="label">Longitud</div><div class="small" id="vLon">—</div></div>
+      </div>
+    </div>
+
+    <button class="btn" id="btnGPS" type="button">Activar GPS</button>
+    <div style="height:10px"></div>
+    <button class="btn" id="btnCapturar" type="button" disabled>Capturar punto</button>
+
+    <div class="card" id="cardProm" style="display:none;margin-top:12px">
+      <div class="status"><span id="promTxt">Promediando…</span></div>
+      <div class="progress"><div id="promBar"></div></div>
+      <div class="small" id="promDet"></div>
+      <div style="height:10px"></div>
+      <div class="row">
+        <button class="btn sec" id="btnTerminar" type="button">Terminar ya</button>
+        <button class="btn danger" id="btnCancelar" type="button">Cancelar</button>
+      </div>
+    </div>
+    <p class="note" style="margin-top:14px">Las coordenadas se calculan del GNSS del celular (WGS84) con transformación nula a CR-SIRGAS, igual que EPSG:9752. Es válido para precisión métrica, no para trabajos de nivel catastral.</p>
+  </section>
+
+  <!-- MAPA -->
+  <section id="tab-mapa">
+    <div id="map"></div>
+    <div class="mapbtns">
+      <button id="btnCentrar" type="button">◎ Mi posición</button>
+      <button id="btnVerTodos" type="button">⤢ Ver puntos</button>
+    </div>
+  </section>
+
+  <!-- PUNTOS -->
+  <section id="tab-puntos">
+    <div class="card">
+      <div class="label">Exportar</div>
+      <div class="note" id="resumen" style="margin:4px 0 10px"></div>
+      <button class="btn" data-exp="zip" type="button">ZIP con fotos</button>
+      <div style="height:8px"></div>
+      <div class="row">
+        <button class="btn sec mini" data-exp="csv" type="button">CSV</button>
+        <button class="btn sec mini" data-exp="geo8908" type="button">GeoJSON 8908</button>
+      </div>
+      <div style="height:8px"></div>
+      <div class="row">
+        <button class="btn sec mini" data-exp="geo4326" type="button">GeoJSON WGS84</button>
+        <button class="btn sec mini" data-exp="respaldo" type="button">Respaldo</button>
+      </div>
+      <p class="note" style="margin:10px 0 0">El ZIP trae la tabla de puntos, una tabla de fotos y los JPG con GPS y rumbo en el EXIF. Si el celular lo permite, se abre el menú de compartir; si no, el archivo se descarga.</p>
+    </div>
+    <div id="lista"></div>
+  </section>
+</main>
+
+<nav>
+  <button data-tab="captura" class="on" type="button">Captura</button>
+  <button data-tab="mapa" type="button">Mapa</button>
+  <button data-tab="puntos" type="button">Puntos <span id="nPts"></span></button>
+</nav>
+
+<!-- Diálogo de punto -->
+<dialog id="dlgPunto">
+  <form method="dialog" id="formPunto">
+    <h2 id="dlgTitulo">Guardar punto</h2>
+    <div class="card" style="margin:0 0 6px;padding:10px">
+      <div class="small" id="dlgCoords"></div>
+    </div>
+    <label class="f" for="fId">ID</label>
+    <input id="fId" required autocomplete="off">
+    <label class="f" for="fTipo">Tipo</label>
+    <input id="fTipo" list="tipos" autocomplete="off" placeholder="p. ej. pozo, tragante, vértice">
+    <datalist id="tipos"></datalist>
+    <label class="f" for="fDesc">Descripción</label>
+    <textarea id="fDesc"></textarea>
+
+    <label class="f">Fotos</label>
+    <div class="rumbo" id="rumboBox">
+      <svg width="34" height="34" viewBox="-17 -17 34 34" aria-hidden="true"><circle r="15" fill="#e6eeec"/><g id="flecha"><path d="M0-13 5 4 0 1-5 4z" fill="#b3261e"/></g><text y="-7" text-anchor="middle" font-size="7" fill="#5b6b69" dy="-1">N</text></svg>
+      <span id="rumboTxt">Rumbo: —</span>
+    </div>
+    <div class="fotos" id="fotosGrid"></div>
+    <div class="row">
+      <button class="btn sec mini" id="btnCam" type="button">📷 Cámara</button>
+      <button class="btn sec mini" id="btnGal" type="button">🖼 Galería</button>
+    </div>
+    <input type="file" id="inCam" accept="image/*" capture="environment" hidden>
+    <input type="file" id="inGal" accept="image/*" multiple hidden>
+    <p class="note" style="margin:6px 0 0">Para registrar el rumbo, apunte el celular hacia lo que va a fotografiar y luego toque «Cámara». Se guarda el rumbo de ese momento, y puede corregirlo tocando la foto.</p>
+
+    <div style="height:14px"></div>
+    <div class="row">
+      <button class="btn sec" value="cancel" type="submit" formnovalidate>Cancelar</button>
+      <button class="btn" value="ok" type="submit">Guardar</button>
+    </div>
+    <div style="height:10px"></div>
+    <button class="btn danger" id="btnBorrar" type="button" style="display:none">Borrar punto</button>
+  </form>
+</dialog>
+
+<!-- Visor de foto -->
+<dialog id="dlgFoto">
+  <div class="dlg">
+    <img id="fotoGrande" alt="Foto del punto">
+    <div class="small" id="fotoInfo" style="margin:8px 0"></div>
+    <label class="f" for="fotoRumbo">Rumbo (grados, 0 = norte)</label>
+    <input id="fotoRumbo" type="number" min="0" max="360" step="1" inputmode="numeric" placeholder="sin rumbo">
+    <div style="height:12px"></div>
+    <div class="row">
+      <button class="btn danger" id="fotoQuitar" type="button">Quitar foto</button>
+      <button class="btn" id="fotoListo" type="button">Listo</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Diálogo de confirmación -->
+<dialog id="dlgConfirm">
+  <div class="dlg">
+    <h2 id="cfTitulo">¿Seguro?</h2>
+    <p id="cfTexto"></p>
+    <div class="row">
+      <button class="btn sec" id="cfNo" type="button">Cancelar</button>
+      <button class="btn danger" id="cfSi" type="button">Sí</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Ajustes -->
+<dialog id="dlgAjustes">
+  <form method="dialog">
+    <h2>Ajustes</h2>
+    <label class="f" for="aDur">Tiempo de promedio</label>
+    <select id="aDur">
+      <option value="0">Sin promedio (una lectura)</option>
+      <option value="10">10 segundos</option>
+      <option value="30">30 segundos</option>
+      <option value="60">60 segundos</option>
+      <option value="120">2 minutos</option>
+    </select>
+    <label class="f" for="aMax">Descartar lecturas con precisión peor que</label>
+    <select id="aMax">
+      <option value="5">5 m</option>
+      <option value="10">10 m</option>
+      <option value="20">20 m</option>
+      <option value="50">50 m</option>
+      <option value="9999">No descartar</option>
+    </select>
+    <label class="f" for="aPref">Prefijo del ID</label>
+    <input id="aPref" maxlength="12">
+    <label class="f" for="aDec">Decimales en Este/Norte</label>
+    <select id="aDec"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+    <label class="f" for="aFoto">Tamaño de las fotos</label>
+    <select id="aFoto">
+      <option value="1600">Reducida, 1600 px (~300–500 KB)</option>
+      <option value="2400">Media, 2400 px (~0,8–1,2 MB)</option>
+      <option value="0">Original de la cámara (3–8 MB)</option>
+    </select>
+    <p class="note" id="usoAlm" style="margin:6px 0 0"></p>
+    <div style="height:14px"></div>
+    <button class="btn" value="ok" type="submit">Listo</button>
+    <div style="height:14px"></div>
+    <label class="f">Restaurar respaldo (.zip o .json)</label>
+    <input type="file" id="aImport" accept=".zip,.json,application/zip,application/json">
+    <div style="height:10px"></div>
+    <button class="btn danger" id="btnBorrarTodo" type="button">Borrar todos los puntos y fotos</button>
+    <p class="note">Los puntos y las fotos quedan guardados solo en este celular y en este navegador. Exporte o haga un respaldo con frecuencia.</p>
+  </form>
+</dialog>
+
+<div class="msg" id="msg"></div>
+<div class="ocupado" id="ocupado">Procesando…</div>
+
+<script src="crtm05.js"></script>
+<script src="leaflet/leaflet.js"></script>
+<script src="lib/jszip.min.js"></script>
+<script src="lib/piexif.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const KEY_P = 'crsirgas8908_puntos', KEY_C = 'crsirgas8908_ajustes';
+
+  // ---------- almacenamiento (puntos en localStorage, fotos en IndexedDB) ----------
+  const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { toast('No se pudo guardar en el celular'); return false; } };
+  const nuevoUid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  let puntos = load(KEY_P, []);
+  puntos.forEach(p => { if (!p.uid) p.uid = nuevoUid(); if (!Array.isArray(p.fotos)) p.fotos = []; });
+  let cfg = Object.assign({ dur: 30, max: 10, pref: 'P', dec: 2, seq: 1, fotoTam: 1600 }, load(KEY_C, {}));
+  const guardarPuntos = () => save(KEY_P, puntos);
+  const guardarCfg = () => save(KEY_C, cfg);
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+  let dbP = null;
+  function db() {
+    if (!dbP) dbP = new Promise((res, rej) => {
+      const r = indexedDB.open('crsirgas8908', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('fotos', { keyPath: 'fid' });
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+    return dbP;
+  }
+  async function tx(modo, fn) {
+    const d = await db();
+    return new Promise((res, rej) => {
+      const t = d.transaction('fotos', modo), st = t.objectStore('fotos'); let out;
+      const r = fn(st); if (r) r.onsuccess = () => { out = r.result; };
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    });
+  }
+  const fotoGet = fid => tx('readonly', s => s.get(fid));
+  const fotoPut = rec => tx('readwrite', s => s.put(rec));
+  const fotoDel = fid => tx('readwrite', s => s.delete(fid));
+  const fotoClear = () => tx('readwrite', s => s.clear());
+
+  // ---------- utilidades ----------
+  let tMsg;
+  function toast(t) { const m = $('msg'); m.textContent = t; m.classList.add('show'); clearTimeout(tMsg); tMsg = setTimeout(() => m.classList.remove('show'), 2800); }
+  const ocupado = (on, t = 'Procesando…') => { $('ocupado').textContent = t; $('ocupado').classList.toggle('on', on); };
+  const fx = (v, d) => (v == null || isNaN(v)) ? '—' : v.toLocaleString('es-CR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const enCR = (E, N) => E > 150000 && E < 850000 && N > 850000 && N < 1300000;
+  const seguro = s => String(s).replace(/[^\w.-]+/g, '_');
+  const nombresFotos = p => p.fotos.map((_, i) => `fotos/${seguro(p.id)}_${i + 1}.jpg`);
+  // Propone el siguiente ID; el contador solo avanza cuando el punto se guarda.
+  function nextId() {
+    const usados = new Set(puntos.map(p => p.id));
+    let s = cfg.seq, id;
+    do { id = cfg.pref + String(s).padStart(3, '0'); s++; } while (usados.has(id));
+    return { id, seq: s };
+  }
+  function confirmar(titulo, texto, siTxt = 'Sí') {
+    return new Promise(res => {
+      $('cfTitulo').textContent = titulo; $('cfTexto').textContent = texto; $('cfSi').textContent = siTxt;
+      const d = $('dlgConfirm');
+      const fin = v => { $('cfSi').onclick = $('cfNo').onclick = null; d.close(); res(v); };
+      $('cfSi').onclick = () => fin(true); $('cfNo').onclick = () => fin(false);
+      d.showModal();
+    });
+  }
+
+  // ---------- pestañas ----------
+  document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === 'tab-' + b.dataset.tab));
+    if (b.dataset.tab === 'mapa') initMapa();
+    if (b.dataset.tab === 'puntos') renderLista();
+  }));
+
+  // ---------- brújula (rumbo hacia donde apunta la cámara trasera) ----------
+  let rumbo = null, rumboT = 0, brujulaOn = false;
+  function rumboDesde(alpha, beta, gamma) {
+    const r = Math.PI / 180, cA = Math.cos(alpha * r), sA = Math.sin(alpha * r), cB = Math.cos(beta * r), sB = Math.sin(beta * r),
+      cG = Math.cos(gamma * r), sG = Math.sin(gamma * r);
+    // eje -Z del dispositivo (cámara trasera) en el marco Este-Norte-Arriba
+    let x = -(cG * sA * sB + cA * sG), y = -(sA * sG - cA * cG * sB);
+    if (Math.hypot(x, y) < 0.3) { x = -cB * sA; y = cA * cB; } // celular casi horizontal: usar el borde superior
+    return (Math.atan2(x, y) / r + 360) % 360;
+  }
+  function onOrient(e) {
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading; // iOS
+    else if (e.absolute && e.alpha != null) h = rumboDesde(e.alpha, e.beta || 0, e.gamma || 0);
+    if (h == null) return;
+    rumbo = h; rumboT = Date.now();
+    $('flecha').setAttribute('transform', `rotate(${h.toFixed(0)})`);
+    $('rumboTxt').textContent = `Rumbo: ${h.toFixed(0)}° (brújula)`;
+  }
+  async function iniciarBrujula() {
+    if (brujulaOn) return; brujulaOn = true;
+    try { if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission(); } catch {}
+    if ('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', onOrient);
+    else window.addEventListener('deviceorientation', onOrient);
+    setTimeout(() => { if (rumbo == null) $('rumboTxt').textContent = 'Rumbo: brújula no disponible'; }, 2500);
+  }
+  const rumboVigente = () => (rumbo != null && Date.now() - rumboT < 3000) ? Math.round(rumbo) % 360 : null;
+
+  // ---------- GPS ----------
+  let watchId = null, ultimo = null, wakeLock = null;
+  const muestras = []; let promediando = null;
+
+  function estado(cls, txt, det) {
+    $('dot').className = 'dot ' + cls; $('estado').textContent = txt; if (det != null) $('estadoDet').textContent = det;
+  }
+  function iniciarGPS() {
+    if (!('geolocation' in navigator)) { estado('bad', 'Este navegador no tiene GPS', ''); return; }
+    if (!window.isSecureContext) { estado('bad', 'Se necesita HTTPS', 'Abra la app desde una dirección https:// para usar el GPS.'); return; }
+    estado('warn', 'Buscando señal…', 'Salga a cielo abierto si tarda.');
+    watchId = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+    $('btnGPS').textContent = 'Detener GPS';
+    iniciarBrujula();
+  }
+  function detenerGPS() {
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    watchId = null; ultimo = null; $('btnGPS').textContent = 'Activar GPS'; $('btnCapturar').disabled = true;
+    estado('', 'GPS inactivo', 'Toque «Activar GPS» para empezar.');
+  }
+  $('btnGPS').addEventListener('click', () => watchId == null ? iniciarGPS() : detenerGPS());
+
+  function onPos(pos) {
+    const c = pos.coords;
+    const p = CRTM05.toCRTM05(c.latitude, c.longitude);
+    ultimo = { lat: c.latitude, lon: c.longitude, E: p.E, N: p.N, acc: c.accuracy, alt: c.altitude, t: pos.timestamp };
+    const d = cfg.dec;
+    $('vE').textContent = fx(p.E, d); $('vN').textContent = fx(p.N, d);
+    $('vAcc').textContent = '± ' + fx(c.accuracy, 1) + ' m';
+    $('vAlt').textContent = c.altitude == null ? 'no disponible' : fx(c.altitude, 1) + ' m';
+    $('vLat').textContent = c.latitude.toFixed(7) + '°'; $('vLon').textContent = c.longitude.toFixed(7) + '°';
+    const cls = c.accuracy <= 5 ? 'ok' : c.accuracy <= 15 ? 'warn' : 'bad';
+    const txt = c.accuracy <= 5 ? 'Buena señal' : c.accuracy <= 15 ? 'Señal regular' : 'Señal débil';
+    estado(cls, txt, enCR(p.E, p.N) ? 'Actualizado ' + new Date(pos.timestamp).toLocaleTimeString('es-CR') : 'Atención: la posición está fuera de Costa Rica; CRTM05 no aplica.');
+    $('btnCapturar').disabled = !!promediando;
+    if (promediando) muestras.push(ultimo);
+    actualizarPosMapa();
+  }
+  function onErr(err) {
+    const t = { 1: 'Permiso de ubicación denegado', 2: 'Ubicación no disponible', 3: 'Sin respuesta del GPS' }[err.code] || 'Error de GPS';
+    const det = err.code === 1 ? 'Habilite la ubicación para este sitio en los ajustes del navegador.' : 'Verifique que la ubicación del celular esté activa y en modo de alta precisión.';
+    estado('bad', t, det);
+    if (err.code === 1) detenerGPS();
+  }
+
+  // ---------- captura con promedio ----------
+  async function pedirWake() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {} }
+  function soltarWake() { try { wakeLock && wakeLock.release(); } catch {} wakeLock = null; }
+
+  $('btnCapturar').addEventListener('click', () => {
+    if (!ultimo) return;
+    const dur = Number(cfg.dur);
+    if (!dur) { terminarCaptura([ultimo], 0); return; }
+    muestras.length = 0; muestras.push(ultimo);
+    const t0 = Date.now();
+    pedirWake();
+    $('cardProm').style.display = ''; $('btnCapturar').disabled = true;
+    promediando = setInterval(() => {
+      const s = (Date.now() - t0) / 1000;
+      const validas = muestras.filter(m => m.acc <= cfg.max).length;
+      $('promBar').style.width = Math.min(100, s / dur * 100) + '%';
+      $('promTxt').textContent = `Promediando… ${Math.min(dur, Math.round(s))} / ${dur} s`;
+      $('promDet').textContent = `${muestras.length} lecturas · ${validas} dentro de ±${cfg.max >= 9999 ? '∞' : cfg.max} m`;
+      if (s >= dur) finalizarPromedio(s);
+    }, 500);
+  });
+  function pararPromedio() { clearInterval(promediando); promediando = null; $('cardProm').style.display = 'none'; soltarWake(); $('btnCapturar').disabled = !ultimo; }
+  function finalizarPromedio(s) { const usar = muestras.slice(); pararPromedio(); terminarCaptura(usar, Math.round(s ?? 0)); }
+  $('btnTerminar').addEventListener('click', () => finalizarPromedio(null));
+  $('btnCancelar').addEventListener('click', () => { pararPromedio(); toast('Captura cancelada'); });
+
+  function terminarCaptura(lista, dur) {
+    let buenas = lista.filter(m => m.acc <= cfg.max), aviso = '';
+    if (!buenas.length) { buenas = lista; aviso = 'Ninguna lectura cumplió el umbral; se usaron todas.'; }
+    const n = buenas.length, avg = k => buenas.reduce((a, m) => a + m[k], 0) / n;
+    const E = avg('E'), N = avg('N');
+    const sd = k => { const mu = k === 'E' ? E : N; return n > 1 ? Math.sqrt(buenas.reduce((a, m) => a + (m[k] - mu) ** 2, 0) / (n - 1)) : null; };
+    const alts = buenas.filter(m => m.alt != null);
+    const ll = CRTM05.fromCRTM05(E, N);
+    const prop = nextId();
+    const borrador = {
+      _seq: prop.seq, uid: nuevoUid(), id: prop.id, tipo: '', desc: '', E, N, lat: ll.lat, lon: ll.lon,
+      alt: alts.length ? alts.reduce((a, m) => a + m.alt, 0) / alts.length : null,
+      acc: avg('acc'), sdE: sd('E'), sdN: sd('N'), n, nTotal: lista.length, dur, fecha: new Date().toISOString(), fotos: []
+    };
+    if (navigator.vibrate) navigator.vibrate(150);
+    abrirDialogo(borrador, true, aviso);
+  }
+
+  // ---------- fotos ----------
+  // Estado de las fotos del diálogo abierto; nada se escribe en IndexedDB hasta «Guardar».
+  let dlgFotos = [];
+  function blobAImagen(blob) {
+    return new Promise((res, rej) => { const u = URL.createObjectURL(blob), im = new Image();
+      im.onload = () => res({ im, u }); im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('img')); }; im.src = u; });
+  }
+  function canvasABlob(fuente, w, h, lado, calidad) {
+    const k = Math.min(1, lado / Math.max(w, h)), cw = Math.round(w * k), ch = Math.round(h * k);
+    const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+    c.getContext('2d').drawImage(fuente, 0, 0, cw, ch);
+    return new Promise(res => c.toBlob(b => res({ b, w: cw, h: ch }), 'image/jpeg', calidad));
+  }
+  async function procesarFoto(file, rumboFoto) {
+    let fuente, w, h, u = null;
+    try { fuente = await createImageBitmap(file, { imageOrientation: 'from-image' }); w = fuente.width; h = fuente.height; }
+    catch { const r = await blobAImagen(file); fuente = r.im; u = r.u; w = fuente.naturalWidth; h = fuente.naturalHeight; }
+    const thumb = (await canvasABlob(fuente, w, h, 320, 0.75)).b;
+    let blob, ow = w, oh = h;
+    const tam = Number(cfg.fotoTam);
+    if (!tam || (Math.max(w, h) <= tam && file.type === 'image/jpeg')) blob = file;
+    else { const r = await canvasABlob(fuente, w, h, tam, 0.85); blob = r.b; ow = r.w; oh = r.h; }
+    if (fuente.close) fuente.close(); if (u) URL.revokeObjectURL(u);
+    return { fid: nuevoUid(), blob, thumb, mime: blob.type || 'image/jpeg', w: ow, h: oh, rumbo: rumboFoto, fecha: new Date().toISOString(), origen: file.name || '' };
+  }
+  async function agregarArchivos(files, rumboFoto) {
+    if (!files || !files.length) return;
+    ocupado(true, 'Procesando foto…');
+    try {
+      for (const f of files) {
+        const rec = await procesarFoto(f, rumboFoto);
+        dlgFotos.push({ fid: rec.fid, rec, nuevo: true, borrar: false, rumbo: rec.rumbo, url: URL.createObjectURL(rec.thumb), cambio: false });
+      }
+    } catch (e) { toast('No se pudo leer la imagen'); }
+    ocupado(false); renderFotosDlg();
+  }
+  let rumboPulsado = null;
+  $('btnCam').addEventListener('click', () => { iniciarBrujula(); rumboPulsado = rumboVigente(); $('inCam').click(); });
+  $('btnGal').addEventListener('click', () => { $('inGal').click(); });
+  $('inCam').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; agregarArchivos(f, rumboPulsado); });
+  $('inGal').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; agregarArchivos(f, null); });
+
+  function renderFotosDlg() {
+    const vis = dlgFotos.filter(f => !f.borrar);
+    $('fotosGrid').innerHTML = vis.map(f => `<button type="button" class="foto" data-fid="${f.fid}"><img src="${f.url || ''}" alt="">` +
+      `<span>${f.rumbo == null ? 'sin rumbo' : f.rumbo + '°'}</span></button>`).join('');
+    $('fotosGrid').style.display = vis.length ? '' : 'none';
+  }
+  let fotoAbierta = null;
+  $('fotosGrid').addEventListener('click', async e => {
+    const b = e.target.closest('[data-fid]'); if (!b) return;
+    const f = dlgFotos.find(x => x.fid === b.dataset.fid); if (!f) return;
+    fotoAbierta = f;
+    const rec = f.rec || await fotoGet(f.fid);
+    if (!rec) { toast('Foto no encontrada'); return; }
+    const u = URL.createObjectURL(rec.blob);
+    $('fotoGrande').src = u; $('fotoGrande').dataset.u = u;
+    $('fotoInfo').textContent = `${rec.w}×${rec.h} px · ${fx(rec.blob.size / 1048576, 2)} MB · ${new Date(rec.fecha).toLocaleString('es-CR')}`;
+    $('fotoRumbo').value = f.rumbo ?? '';
+    $('dlgFoto').showModal();
+  });
+  function cerrarFoto() { const u = $('fotoGrande').dataset.u; if (u) URL.revokeObjectURL(u); $('fotoGrande').removeAttribute('src'); $('dlgFoto').close(); fotoAbierta = null; renderFotosDlg(); }
+  $('fotoListo').addEventListener('click', () => {
+    const v = $('fotoRumbo').value.trim();
+    const nv = v === '' ? null : ((Math.round(Number(v)) % 360) + 360) % 360;
+    if (fotoAbierta && nv !== fotoAbierta.rumbo && !(v !== '' && isNaN(Number(v)))) { fotoAbierta.rumbo = nv; fotoAbierta.cambio = true; }
+    cerrarFoto();
+  });
+  $('fotoQuitar').addEventListener('click', () => { if (fotoAbierta) fotoAbierta.borrar = true; cerrarFoto(); });
+
+  async function confirmarFotos(p) {
+    for (const f of dlgFotos) {
+      if (f.nuevo && !f.borrar) await fotoPut(Object.assign(f.rec, { uid: p.uid, rumbo: f.rumbo }));
+      else if (!f.nuevo && f.borrar) await fotoDel(f.fid);
+      else if (!f.nuevo && f.cambio) { const r = await fotoGet(f.fid); if (r) { r.rumbo = f.rumbo; await fotoPut(r); } }
+    }
+    p.fotos = dlgFotos.filter(f => !f.borrar).map(f => f.fid);
+    p.rumbos = dlgFotos.filter(f => !f.borrar).map(f => f.rumbo);
+  }
+  function soltarFotosDlg() { dlgFotos.forEach(f => f.url && URL.revokeObjectURL(f.url)); dlgFotos = []; }
+
+  // ---------- diálogo de punto ----------
+  let editando = null, esNuevo = false;
+  async function abrirDialogo(p, nuevo, aviso = '') {
+    editando = p; esNuevo = nuevo;
+    $('dlgTitulo').textContent = nuevo ? 'Guardar punto' : 'Editar punto';
+    const d = cfg.dec;
+    $('dlgCoords').innerHTML = `E ${fx(p.E, d)} · N ${fx(p.N, d)}<br>± ${fx(p.acc, 1)} m · ${p.n} lectura${p.n === 1 ? '' : 's'}` +
+      (p.sdE != null ? ` · σE ${fx(p.sdE, 2)} σN ${fx(p.sdN, 2)} m` : '') + (aviso ? `<br><span style="color:var(--warn)">${esc(aviso)}</span>` : '');
+    $('fId').value = p.id; $('fTipo').value = p.tipo || ''; $('fDesc').value = p.desc || '';
+    $('tipos').innerHTML = [...new Set(puntos.map(x => x.tipo).filter(Boolean))].map(t => `<option value="${esc(t)}">`).join('');
+    $('btnBorrar').style.display = nuevo ? 'none' : '';
+    soltarFotosDlg();
+    dlgFotos = p.fotos.map((fid, i) => ({ fid, nuevo: false, borrar: false, rumbo: (p.rumbos || [])[i] ?? null, url: null, cambio: false }));
+    renderFotosDlg();
+    $('dlgPunto').showModal();
+    iniciarBrujula();
+    for (const f of dlgFotos) { try { const r = await fotoGet(f.fid); if (r) { f.url = URL.createObjectURL(r.thumb || r.blob); f.rumbo = r.rumbo ?? f.rumbo; } } catch {} }
+    renderFotosDlg();
+  }
+  $('dlgPunto').addEventListener('close', async () => {
+    if ($('dlgPunto').returnValue !== 'ok' || !editando) { if (esNuevo && editando) toast('Punto descartado'); editando = null; soltarFotosDlg(); return; }
+    const p = editando; editando = null;
+    const id = $('fId').value.trim() || p.id;
+    if (puntos.some(x => x.id === id && x !== p)) { toast(`El ID ${id} ya existe; se guardó como ${id}-b`); p.id = id + '-b'; }
+    else p.id = id;
+    p.tipo = $('fTipo').value.trim(); p.desc = $('fDesc').value.trim();
+    try { await confirmarFotos(p); } catch { toast('No se pudieron guardar las fotos (¿almacenamiento lleno?)'); }
+    soltarFotosDlg();
+    if (esNuevo) { puntos.push(p); if (p._seq) { cfg.seq = Math.max(cfg.seq, p._seq); guardarCfg(); } delete p._seq; }
+    guardarPuntos(); toast(`Punto ${p.id} guardado${p.fotos.length ? ` con ${p.fotos.length} foto(s)` : ''}`);
+    actualizarConteo(); renderLista(); dibujarPuntos();
+  });
+  $('btnBorrar').addEventListener('click', async () => {
+    const p = editando; $('dlgPunto').close('cancel');
+    if (await confirmar('Borrar punto', `¿Borrar el punto ${p.id}${p.fotos.length ? ` y sus ${p.fotos.length} foto(s)` : ''}?`, 'Borrar')) {
+      for (const fid of p.fotos) { try { await fotoDel(fid); } catch {} }
+      puntos = puntos.filter(x => x !== p); guardarPuntos(); actualizarConteo(); renderLista(); dibujarPuntos(); toast('Punto borrado');
+    }
+  });
+
+  // ---------- lista ----------
+  const urlsLista = [];
+  function actualizarConteo() { $('nPts').textContent = puntos.length ? `(${puntos.length})` : ''; }
+  async function renderLista() {
+    const d = cfg.dec, nf = puntos.reduce((a, p) => a + p.fotos.length, 0);
+    $('resumen').textContent = puntos.length ? `${puntos.length} punto${puntos.length === 1 ? '' : 's'} · ${nf} foto${nf === 1 ? '' : 's'}` : 'Todavía no hay puntos.';
+    urlsLista.splice(0).forEach(u => URL.revokeObjectURL(u));
+    if (!puntos.length) { $('lista').innerHTML = '<div class="empty">Los puntos que capture aparecerán aquí.</div>'; return; }
+    $('lista').innerHTML = puntos.slice().reverse().map((p, i) => `
+      <div class="card pt" data-i="${puntos.length - 1 - i}">
+        ${p.fotos.length ? `<img data-fid="${p.fotos[0]}" alt="">` : ''}
+        <div style="flex:1;min-width:0">
+          <b>${esc(p.id)}</b>${p.tipo ? `<span class="tag">${esc(p.tipo)}</span>` : ''}${p.fotos.length ? `<span class="tag">📷 ${p.fotos.length}</span>` : ''}
+          <div class="small">E ${fx(p.E, d)}<br>N ${fx(p.N, d)}</div>
+          ${p.desc ? `<div class="note">${esc(p.desc)}</div>` : ''}
+        </div>
+        <div class="small" style="text-align:right;white-space:nowrap">± ${fx(p.acc, 1)} m<br>${new Date(p.fecha).toLocaleDateString('es-CR')}</div>
+      </div>`).join('');
+    for (const im of $('lista').querySelectorAll('img[data-fid]')) {
+      try { const r = await fotoGet(im.dataset.fid); if (r) { const u = URL.createObjectURL(r.thumb || r.blob); urlsLista.push(u); im.src = u; } } catch {}
+    }
+  }
+  $('lista').addEventListener('click', e => { const c = e.target.closest('[data-i]'); if (c) abrirDialogo(puntos[+c.dataset.i], false); });
+
+  // ---------- exportación ----------
+  const stamp = () => { const t = new Date(), z = n => String(n).padStart(2, '0'); return `${t.getFullYear()}${z(t.getMonth() + 1)}${z(t.getDate())}_${z(t.getHours())}${z(t.getMinutes())}`; };
+  const csvCell = v => { const s = v == null ? '' : String(v); return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const r = (v, d) => v == null ? null : Number(v.toFixed(d));
+  function props(p) {
+    return { id: p.id, tipo: p.tipo, descripcion: p.desc, este: r(p.E, 3), norte: r(p.N, 3), lat: r(p.lat, 8), lon: r(p.lon, 8),
+      altura_elips_m: r(p.alt, 2), precision_m: r(p.acc, 2), desv_este_m: r(p.sdE, 3), desv_norte_m: r(p.sdN, 3),
+      lecturas: p.n, lecturas_total: p.nTotal, promedio_s: p.dur, fecha: p.fecha, n_fotos: p.fotos.length,
+      fotos: nombresFotos(p).join(';'), epsg: 8908 };
+  }
+  const aCSV = filas => { if (!filas.length) return ''; const cols = Object.keys(filas[0]);
+    return '﻿' + [cols.join(',')].concat(filas.map(o => cols.map(k => csvCell(o[k])).join(','))).join('\r\n'); };
+  const geo8908 = (nombre, items) => JSON.stringify({ type: 'FeatureCollection', name: nombre,
+    crs: { type: 'name', properties: { name: 'urn:ogc:def:crs:EPSG::8908' } },
+    features: items.map(o => ({ type: 'Feature', properties: o, geometry: { type: 'Point', coordinates: [o.este, o.norte] } })) }, null, 1);
+  const geo4326 = (nombre, items) => JSON.stringify({ type: 'FeatureCollection', name: nombre,
+    features: items.map(o => ({ type: 'Feature', properties: o, geometry: { type: 'Point', coordinates: [o.lon, o.lat] } })) }, null, 1);
+  function filasFotos() {
+    const out = [];
+    puntos.forEach(p => nombresFotos(p).forEach((arch, i) => out.push({ archivo: arch, id_punto: p.id, tipo: p.tipo, este: r(p.E, 3), norte: r(p.N, 3),
+      lat: r(p.lat, 8), lon: r(p.lon, 8), rumbo_grados: (p.rumbos || [])[i] ?? null, epsg: 8908 })));
+    return out;
+  }
+
+  // EXIF: escribe GPS (WGS84 ≈ CR-SIRGAS), rumbo y fecha en el JPG
+  function aBinario(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return s; }
+  function deBinario(s) { const u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i) & 255; return u8; }
+  const dms = v => { v = Math.abs(v); const d = Math.floor(v), mF = (v - d) * 60, m = Math.floor(mF), s = Math.round((mF - m) * 60 * 10000); return [[d, 1], [m, 1], [s, 10000]]; };
+  const exifFecha = iso => { const t = new Date(iso), z = n => String(n).padStart(2, '0'); return `${t.getFullYear()}:${z(t.getMonth() + 1)}:${z(t.getDate())} ${z(t.getHours())}:${z(t.getMinutes())}:${z(t.getSeconds())}`; };
+  async function jpgConExif(rec, p) {
+    const u8 = new Uint8Array(await rec.blob.arrayBuffer());
+    if (!(u8[0] === 0xFF && u8[1] === 0xD8) || typeof piexif === 'undefined') return u8;
+    try {
+      const bin = aBinario(u8);
+      let ex; try { ex = piexif.load(bin); } catch { ex = { '0th': {}, Exif: {}, GPS: {}, '1st': {}, thumbnail: null }; }
+      ex.GPS = ex.GPS || {}; ex.Exif = ex.Exif || {}; ex['0th'] = ex['0th'] || {};
+      const G = piexif.GPSIFD;
+      ex.GPS[G.GPSVersionID] = [2, 3, 0, 0];
+      ex.GPS[G.GPSLatitudeRef] = p.lat >= 0 ? 'N' : 'S'; ex.GPS[G.GPSLatitude] = dms(p.lat);
+      ex.GPS[G.GPSLongitudeRef] = p.lon >= 0 ? 'E' : 'W'; ex.GPS[G.GPSLongitude] = dms(p.lon);
+      ex.GPS[G.GPSMapDatum] = 'WGS-84';
+      if (p.alt != null) { ex.GPS[G.GPSAltitudeRef] = p.alt < 0 ? 1 : 0; ex.GPS[G.GPSAltitude] = [Math.round(Math.abs(p.alt) * 100), 100]; }
+      if (p.acc != null) ex.GPS[G.GPSHPositioningError] = [Math.round(p.acc * 100), 100];
+      if (rec.rumbo != null) { ex.GPS[G.GPSImgDirectionRef] = 'M'; ex.GPS[G.GPSImgDirection] = [Math.round(rec.rumbo * 100), 100]; }
+      if (!ex.Exif[piexif.ExifIFD.DateTimeOriginal]) ex.Exif[piexif.ExifIFD.DateTimeOriginal] = exifFecha(rec.fecha);
+      ex['0th'][piexif.ImageIFD.ImageDescription] = `${p.id}${p.tipo ? ' - ' + p.tipo : ''} | CRTM05 E ${p.E.toFixed(2)} N ${p.N.toFixed(2)}`
+        .normalize('NFD').replace(/[^\x20-\x7e]/g, '');
+      if (ex.thumbnail == null) delete ex['1st'];
+      return deBinario(piexif.insert(piexif.dump(ex), bin));
+    } catch (e) { console.warn('EXIF no escrito', e); return u8; }
+  }
+
+  async function construirZip() {
+    const zip = new JSZip(), base = `puntos_crsirgas_8908_${stamp()}`;
+    const pp = puntos.map(props), ff = filasFotos();
+    zip.file('puntos_8908.csv', aCSV(pp));
+    zip.file('puntos_8908.geojson', geo8908('puntos_8908', pp));
+    zip.file('puntos_wgs84.geojson', geo4326('puntos_wgs84', pp));
+    if (ff.length) { zip.file('fotos_8908.csv', aCSV(ff)); zip.file('fotos_8908.geojson', geo8908('fotos_8908', ff)); }
+    let i = 0, faltan = 0; const tot = ff.length;
+    for (const p of puntos) {
+      const nombres = nombresFotos(p);
+      for (let k = 0; k < p.fotos.length; k++) {
+        ocupado(true, `Preparando fotos ${++i}/${tot}…`);
+        const rec = await fotoGet(p.fotos[k]);
+        if (!rec) { faltan++; continue; }
+        rec.rumbo = (p.rumbos || [])[k] ?? rec.rumbo;
+        zip.file(nombres[k], await jpgConExif(rec, p));
+      }
+    }
+    ocupado(true, 'Comprimiendo…');
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } });
+    if (faltan) toast(`${faltan} foto(s) no se encontraron en el celular`);
+    return { nombre: base + '.zip', mime: 'application/zip', blob };
+  }
+  async function construirRespaldo() {
+    const zip = new JSZip();
+    zip.file('respaldo.json', JSON.stringify({ app: 'crsirgas8908', version: 2, cfg, puntos }));
+    for (const p of puntos) for (const fid of p.fotos) {
+      const rec = await fotoGet(fid); if (!rec) continue;
+      zip.file(`fotos_raw/${fid}.json`, JSON.stringify({ fid, uid: rec.uid, mime: rec.mime, w: rec.w, h: rec.h, rumbo: rec.rumbo, fecha: rec.fecha, origen: rec.origen }));
+      zip.file(`fotos_raw/${fid}.img`, rec.blob);
+      if (rec.thumb) zip.file(`fotos_raw/${fid}.thumb`, rec.thumb);
+    }
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+    return { nombre: `respaldo_puntos_${stamp()}.zip`, mime: 'application/zip', blob };
+  }
+  async function construir(tipo) {
+    const pp = puntos.map(props);
+    if (tipo === 'zip') return construirZip();
+    if (tipo === 'respaldo') return construirRespaldo();
+    if (tipo === 'csv') return { nombre: `puntos_crsirgas_8908_${stamp()}.csv`, mime: 'text/csv', blob: new Blob([aCSV(pp)], { type: 'text/csv' }) };
+    if (tipo === 'geo8908') return { nombre: `puntos_crsirgas_8908_${stamp()}.geojson`, mime: 'application/geo+json', blob: new Blob([geo8908('puntos_8908', pp)], { type: 'application/geo+json' }) };
+    return { nombre: `puntos_wgs84_${stamp()}.geojson`, mime: 'application/geo+json', blob: new Blob([geo4326('puntos_wgs84', pp)], { type: 'application/geo+json' }) };
+  }
+  async function exportar(tipo) {
+    if (!puntos.length) { toast('No hay puntos para exportar'); return; }
+    let out;
+    try { ocupado(true); out = await construir(tipo); }
+    catch (e) { console.error(e); toast('No se pudo generar el archivo'); return; }
+    finally { ocupado(false); }
+    const { nombre, mime, blob } = out;
+    try {
+      const file = new File([blob], nombre, { type: mime });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: nombre }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    toast('Archivo descargado: ' + nombre);
+  }
+  document.querySelectorAll('[data-exp]').forEach(b => b.addEventListener('click', () => exportar(b.dataset.exp)));
+
+  // ---------- ajustes ----------
+  $('btnAjustes').addEventListener('click', async () => {
+    $('aDur').value = cfg.dur; $('aMax').value = cfg.max; $('aPref').value = cfg.pref; $('aDec').value = cfg.dec; $('aFoto').value = cfg.fotoTam;
+    $('usoAlm').textContent = '';
+    $('dlgAjustes').showModal();
+    try { const e = await navigator.storage.estimate(); $('usoAlm').textContent = `Almacenamiento usado: ${fx(e.usage / 1048576, 1)} MB de ~${fx(e.quota / 1048576, 0)} MB disponibles para la app.`; } catch {}
+  });
+  $('dlgAjustes').addEventListener('close', () => {
+    const pref = $('aPref').value.trim();
+    if (pref !== cfg.pref) cfg.seq = 1;
+    cfg.dur = +$('aDur').value; cfg.max = +$('aMax').value; cfg.pref = pref; cfg.dec = +$('aDec').value; cfg.fotoTam = +$('aFoto').value;
+    guardarCfg(); renderLista();
+  });
+  $('aImport').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    ocupado(true, 'Restaurando…');
+    try {
+      let data, zip = null;
+      if (/\.zip$/i.test(f.name) || f.type.includes('zip')) { zip = await JSZip.loadAsync(f); data = JSON.parse(await zip.file('respaldo.json').async('string')); }
+      else data = JSON.parse(await f.text());
+      const lista = Array.isArray(data) ? data : data.puntos;
+      if (!Array.isArray(lista) || !lista.every(p => typeof p.E === 'number' && typeof p.N === 'number' && p.id)) throw 0;
+      const ids = new Set(puntos.map(p => p.id)); const nuevos = lista.filter(p => !ids.has(p.id));
+      let fotosOk = 0;
+      for (const p of nuevos) {
+        if (!p.uid) p.uid = nuevoUid();
+        const fs = Array.isArray(p.fotos) ? p.fotos : [], quedan = [], rumbos = [];
+        for (let k = 0; k < fs.length; k++) {
+          const fid = fs[k], meta = zip && zip.file(`fotos_raw/${fid}.json`), img = zip && zip.file(`fotos_raw/${fid}.img`);
+          if (!meta || !img) continue;
+          const m = JSON.parse(await meta.async('string'));
+          const blob = new Blob([await img.async('arraybuffer')], { type: m.mime || 'image/jpeg' });
+          const th = zip.file(`fotos_raw/${fid}.thumb`);
+          const thumb = th ? new Blob([await th.async('arraybuffer')], { type: 'image/jpeg' }) : null;
+          await fotoPut(Object.assign(m, { fid, uid: p.uid, blob, thumb }));
+          quedan.push(fid); rumbos.push((p.rumbos || [])[k] ?? m.rumbo ?? null); fotosOk++;
+        }
+        p.fotos = quedan; p.rumbos = rumbos;
+      }
+      puntos = puntos.concat(nuevos); guardarPuntos(); actualizarConteo(); renderLista(); dibujarPuntos();
+      toast(`${nuevos.length} punto(s) y ${fotosOk} foto(s) restaurados${lista.length - nuevos.length ? `; ${lista.length - nuevos.length} repetidos omitidos` : ''}`);
+    } catch (err) { console.error(err); toast('El archivo no es un respaldo válido de esta app'); }
+    finally { ocupado(false); }
+  });
+  $('btnBorrarTodo').addEventListener('click', async () => {
+    $('dlgAjustes').close();
+    if (!puntos.length) return;
+    if (await confirmar('Borrar todo', `Se borrarán ${puntos.length} puntos y sus fotos de este celular. Exporte un respaldo antes si los necesita.`, 'Borrar todo')) {
+      try { await fotoClear(); } catch {}
+      puntos = []; cfg.seq = 1; guardarPuntos(); guardarCfg(); actualizarConteo(); renderLista(); dibujarPuntos(); toast('Puntos y fotos borrados');
+    }
+  });
+
+  // ---------- mapa ----------
+  let mapa = null, capaPts = null, marcaYo = null, circYo = null;
+  function initMapa() {
+    if (mapa) { setTimeout(() => mapa.invalidateSize(), 50); return; }
+    if (typeof L === 'undefined') { $('map').innerHTML = '<div class="empty">No se pudo cargar el mapa.</div>'; return; }
+    mapa = L.map('map', { zoomControl: true }).setView([9.93, -84.08], 9);
+    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri World Imagery' });
+    osm.addTo(mapa);
+    L.control.layers({ 'Calles (OSM)': osm, 'Satélite (Esri)': sat }, null, { position: 'topright' }).addTo(mapa);
+    L.control.scale({ imperial: false }).addTo(mapa);
+    capaPts = L.layerGroup().addTo(mapa);
+    dibujarPuntos(); actualizarPosMapa();
+    if (puntos.length) verTodos(); else if (ultimo) mapa.setView([ultimo.lat, ultimo.lon], 17);
+  }
+  function dibujarPuntos() {
+    if (!capaPts) return;
+    capaPts.clearLayers(); const d = cfg.dec;
+    puntos.forEach(p => {
+      const el = document.createElement('div');
+      el.innerHTML = `<b>${esc(p.id)}</b>${p.tipo ? ' · ' + esc(p.tipo) : ''}<br>E ${fx(p.E, d)}<br>N ${fx(p.N, d)}<br>± ${fx(p.acc, 1)} m` +
+        `${p.fotos.length ? ` · 📷 ${p.fotos.length}` : ''}${p.desc ? '<br>' + esc(p.desc) : ''}<div class="pfoto"></div>`;
+      const m = L.circleMarker([p.lat, p.lon], { radius: 7, color: '#fff', weight: 2, fillColor: '#b3261e', fillOpacity: 1 })
+        .bindPopup(el)
+        .bindTooltip(esc(p.id), { permanent: true, direction: 'right', offset: [8, 0] })
+        .addTo(capaPts);
+      if (p.fotos.length) m.on('popupopen', async ev => {
+        const box = el.querySelector('.pfoto'); if (box.firstChild) return;
+        try { const rec = await fotoGet(p.fotos[0]); if (!rec) return;
+          const im = new Image(); im.onload = () => ev.popup.update(); im.src = URL.createObjectURL(rec.thumb || rec.blob); box.appendChild(im); } catch {}
+      });
+    });
+  }
+  function actualizarPosMapa() {
+    if (!mapa || !ultimo) return;
+    const ll = [ultimo.lat, ultimo.lon];
+    if (!marcaYo) {
+      circYo = L.circle(ll, { radius: ultimo.acc, color: '#16796f', weight: 1, fillOpacity: .12 }).addTo(mapa);
+      marcaYo = L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1 }).addTo(mapa);
+    } else { marcaYo.setLatLng(ll); circYo.setLatLng(ll).setRadius(ultimo.acc); }
+  }
+  function verTodos() {
+    if (!mapa || !puntos.length) return;
+    mapa.fitBounds(L.latLngBounds(puntos.map(p => [p.lat, p.lon])).pad(0.2), { maxZoom: 18 });
+  }
+  $('btnCentrar').addEventListener('click', () => { if (!ultimo) { toast('Active el GPS en la pestaña Captura'); return; } mapa && mapa.setView([ultimo.lat, ultimo.lon], Math.max(mapa.getZoom(), 17)); });
+  $('btnVerTodos').addEventListener('click', () => puntos.length ? verTodos() : toast('No hay puntos guardados'));
+
+  // ---------- arranque ----------
+  guardarPuntos(); actualizarConteo(); renderLista();
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && promediando) pedirWake(); });
+  window.__app = { rumboDesde }; // para pruebas
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+PUNTOS CR-SIRGAS (CRTM05 · EPSG:8908) — app web instalable para Android
+
+QUÉ HACE
+- Lee el GNSS del celular y muestra Este/Norte en CR-SIRGAS / CRTM05 (EPSG:8908), además de lat/lon, precisión y altura elipsoidal (si el celular la reporta).
+- Captura puntos promediando N segundos y descarta las lecturas con precisión peor que el umbral (Ajustes).
+- Atributos por punto: ID automático (prefijo configurable), tipo y descripción.
+- Fotos por punto (cámara o galería), con el rumbo de la brújula hacia donde apuntaba el celular. El rumbo se puede corregir tocando la foto.
+- Tamaño de foto en Ajustes: 1600 px, 2400 px u original de la cámara.
+- Mapa con calles (OSM) o satélite (Esri), su posición y los puntos guardados, con miniatura de la foto.
+- Exporta:
+    ZIP con fotos: puntos_8908.csv / .geojson, puntos_wgs84.geojson, fotos_8908.csv / .geojson
+                   (una fila por foto, con rumbo_grados) y la carpeta fotos/ (P001_1.jpg, P001_2.jpg...).
+                   Cada JPG lleva en el EXIF lat/lon, altura, precisión, rumbo (GPSImgDirection, norte magnético),
+                   fecha y una descripción con el ID y la coordenada CRTM05.
+    CSV, GeoJSON 8908 y GeoJSON WGS84 sueltos (sin fotos).
+    Respaldo (.zip con puntos y fotos), que se restaura desde Ajustes.
+- Funciona sin internet después de abrirla una vez. El mapa base solo se ve sin conexión en las zonas que ya vio con internet.
+
+CÓMO PUBLICARLA (el GPS del navegador solo funciona con https)
+Opción A, la más rápida: Netlify Drop
+  1. Descomprima el zip.
+  2. Entre a https://app.netlify.com/drop y arrastre la carpeta "gnss-crsirgas".
+  3. Le da una dirección https://xxxx.netlify.app (cree una cuenta gratis para que no expire).
+Opción B: GitHub Pages
+  1. Cree un repositorio y suba el contenido de la carpeta.
+  2. En Settings > Pages, elija la rama main y la carpeta raíz.
+  3. Le queda en https://SU-USUARIO.github.io/REPOSITORIO/
+
+CÓMO INSTALARLA EN ANDROID
+  1. Abra la dirección https en Chrome.
+  2. Menú ⋮ > "Instalar app" (o "Agregar a pantalla principal").
+  3. Ábrala desde el ícono, toque "Activar GPS" y permita la ubicación ("Mientras se usa la app").
+  4. En los ajustes de ubicación del celular, deje activada la precisión alta o la precisión de ubicación de Google.
+
+NOTAS TÉCNICAS
+- Proyección: +proj=tmerc +lat_0=0 +lon_0=-84 +k=0.9999 +x_0=500000 +y_0=0 +ellps=GRS80. Serie de Krüger, verificada contra PROJ/pyproj con 2000 puntos en Costa Rica (diferencia < 0,001 mm).
+- Datum: transformación nula WGS84 -> CR-SIRGAS (mismo criterio que EPSG:9752). Es correcto para la precisión métrica de un celular, pero no para RTK ni trabajo catastral.
+- El navegador no da acceso a satélites, PDOP ni datos crudos. La "precisión" es la que estima Android (radio de aproximadamente 68 %).
+- Un receptor externo solo se usa si Android lo inyecta como "ubicación simulada" con una app puente (p. ej. Bluetooth GNSS en Opciones de desarrollador).
+- Los puntos se guardan solo en ese celular y en ese navegador. Si borra los datos de Chrome, se pierden: exporte o haga un respaldo con frecuencia.
+- Rumbo: se toma de la brújula del celular en el momento de tocar «Cámara». Tiene el error típico del magnetómetro (±5-15°, mayor cerca de metal o vehículos); calíbrelo moviendo el celular en forma de 8. Las fotos de la galería quedan sin rumbo.
+- El EXIF guarda la coordenada del PUNTO (promediada), no la del instante de la foto.
+- Fotos en QGIS: cargue fotos_8908.geojson y use rumbo_grados como rotación del símbolo para ver hacia dónde mira cada foto. También puede importar la carpeta fotos/ con «Importar fotos geoetiquetadas».
+- Para abrir en QGIS: el GeoJSON 8908 trae el CRS declarado. El CSV se carga como texto delimitado con X=este, Y=norte y CRS EPSG:8908.
